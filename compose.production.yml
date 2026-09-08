@@ -1,0 +1,71 @@
+name: yozaver
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: typerush
+      POSTGRES_DB: typerush
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U typerush -d typerush"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: *logging
+
+  migrate:
+    profiles: [tools]
+    build:
+      context: .
+      target: migration
+    environment:
+      DATABASE_URL: postgresql://typerush:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/typerush?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    logging: *logging
+
+  api:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://typerush:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/typerush?schema=public
+      FRONTEND_URL: ${FRONTEND_URL:-https://yozaver.uz}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://www.yozaver.uz}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-https://api.yozaver.uz/auth/google/callback}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      ENABLE_SWAGGER: "false"
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    stop_grace_period: 30s
+    logging: *logging
+
+volumes:
+  pgdata:

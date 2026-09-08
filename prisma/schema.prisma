@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TestMode {
+  TIME
+  WORDS
+}
+
+enum Language {
+  EN
+  UZ
+}
+
+model User {
+  id        String   @id @default(uuid())
+  googleId  String   @unique
+  email     String   @unique
+  name      String
+  avatarUrl String?
+  role      Role     @default(USER)
+  isBanned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  results TestResult[]
+}
+
+model TestResult {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wpm             Float
+  rawWpm          Float
+  accuracy        Float
+  correctChars    Int
+  incorrectChars  Int
+  extraChars      Int
+  missedChars     Int
+  durationSeconds Int
+  mode            TestMode
+  modeValue       Int
+  language        Language
+  isFlagged       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([wpm(sort: Desc)])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([isFlagged])
+}
+
+model Word {
+  id       String   @id @default(uuid())
+  text     String
+  language Language
+  isActive Boolean  @default(true)
+
+  @@unique([text, language])
+  @@index([language, isActive])
+}
