@@ -57,18 +57,39 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
-## Deployment
+## Live deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+The API runs on the DigitalOcean droplet `161.35.27.123` at `/root/yozaver`, served
+through Nginx at `https://api.yozaver.uz`. The frontend is on Vercel at
+`https://www.yozaver.uz` and reaches this API cross-origin.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+That droplet already hosts several unrelated production sites and has under 1 GB of
+RAM, so this deployment deliberately **does not use Docker**: it reuses the system
+PostgreSQL 14 and the PM2 instance that are already running there. `Dockerfile`,
+`compose.production.yml` and `scripts/deploy.sh` describe the alternative
+container-based setup for a dedicated 2 GB+ host, and are unused on this box.
+
+| Piece | Value |
+| --- | --- |
+| App directory | `/root/yozaver` |
+| Process | PM2 app `yozaver-api`, port 4000 (localhost only) |
+| Database | system PostgreSQL 14, database `yozaver_db`, role `yozaver` |
+| Nginx site | `/etc/nginx/sites-available/yozaver-api` → `127.0.0.1:4000` |
+| Secrets | `/root/yozaver/.env`, mode 600, never committed |
+
+Redeploy after pushing to `main`:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+ssh root@161.35.27.123 'bash /root/yozaver/scripts/redeploy-pm2.sh'
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Useful checks:
+
+```bash
+pm2 logs yozaver-api --lines 50
+curl -fsS http://127.0.0.1:4000/health/ready     # {"status":"ok","database":"connected"}
+sudo -u postgres psql -d yozaver_db -c '\dt'
+```
 
 ## Observability
 
